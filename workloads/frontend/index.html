@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Final Project — Frontend (S3 + CloudFront)</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #0f1115; color: #e6e6e6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .card { background: #1a1d23; border: 1px solid #2a2e37; border-radius: 12px; padding: 40px; text-align: center; min-width: 380px; }
+  h1 { font-size: 18px; margin-bottom: 24px; color: #9aa0ab; }
+  .row { display: flex; justify-content: space-between; margin: 16px 0; padding: 12px; background: #12141a; border-radius: 8px; }
+  .label { color: #6b7280; font-size: 13px; }
+  .value { font-size: 22px; font-weight: 700; color: #4fd1c5; }
+  .meta { margin-top: 20px; font-size: 12px; color: #6b7280; line-height: 1.6; white-space: pre-line; }
+  button { margin-top: 24px; background: #4fd1c5; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Static frontend (S3 + CloudFront) calling two EC2 microservices</h1>
+    <div class="row"><span class="label">total visits</span><span class="value" id="visits">—</span></div>
+    <div class="row"><span class="label">visits / min (stats-service)</span><span class="value" id="rate">—</span></div>
+    <div class="meta" id="meta">loading...</div>
+    <button onclick="loadAll()">Refresh</button>
+  </div>
+  <script>
+    // Replaced by the CI/CD pipeline at deploy time — see the brief's
+    // "Frontend deploy" requirement. S3 static hosting has no runtime env vars,
+    // so the ALB's public DNS name has to be baked into the file before upload.
+    // ONE ALB, ONE origin — /visits* and /stats* are routed to different
+    // target groups by the ALB's listener rules, not by different ports.
+    const API_BASE = "__API_BASE_URL__";
+
+    async function loadAll() {
+      document.getElementById('meta').innerText = 'loading...';
+      try {
+        const visitRes = await fetch(`${API_BASE}/visits`, { method: 'POST' });
+        const visitData = await visitRes.json();
+        document.getElementById('visits').innerText = visitData.total_visits;
+
+        const statsRes = await fetch(`${API_BASE}/stats`);
+        const statsData = await statsRes.json();
+        document.getElementById('rate').innerText = statsData.visits_per_minute_since_stats_started;
+
+        document.getElementById('meta').innerText =
+          'visits-service host: ' + visitData.handled_by_hostname +
+          '\nstats-service host: ' + statsData.handled_by_hostname +
+          '\n' + statsData.timestamp;
+      } catch (e) {
+        document.getElementById('meta').innerText = 'a service is unreachable: ' + e;
+      }
+    }
+    loadAll();
+  </script>
+</body>
+</html>
